@@ -91,7 +91,7 @@ public:
 			return 1;
 
 			//debug
-			/*
+			
 			for (DriverTypeIndex = 0; DriverTypeIndex < NumDriverTypes; ++DriverTypeIndex)
 			{
 			status = D3D11CreateDevice(NULL, DriverTypes[DriverTypeIndex], NULL, NULL, FeatureLevels, NumFeatureLevels,
@@ -107,7 +107,7 @@ public:
 			_tprintf(_T("Failed to create device in InitializeDx\n"));
 			return 1;
 			}
-			*/
+			
 		}
 
 		return 0;

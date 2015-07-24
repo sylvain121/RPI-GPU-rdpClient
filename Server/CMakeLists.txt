@@ -6,6 +6,7 @@ project( server )
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # BOOST
+set(BOOST_ROOT "C:/boost_1_58_0")
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 find_package( Boost REQUIRED COMPONENTS thread )
@@ -16,7 +17,7 @@ include_directories(${Boost_INCLUDE_DIR})
 LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 
 # FFMPEG
-set(FFMPEG_ROOT "" CACHE FILEPATH "Root of the FFMPEG directory, which has README.txt")
+set(FFMPEG_ROOT "C:/ffmpeg")
 if (FFMPEG_ROOT)
 	FIND_PATH( FFMPEG_INCLUDE_DIR libavcodec/avcodec.h
 	  ${FFMPEG_ROOT}/include
@@ -43,33 +44,39 @@ endif()
 
 # DXGI and CUDA
 find_package(CUDA)
+set (CUDA_FOUND 0)
 if(CUDA_FOUND)
     message("CUDA found!")
+	include_directories(${CUDA_TOOLKIT_INCLUDE})
+	CUDA_ADD_LIBRARY(cudalib STATIC
+    color_conversion.h
+    color_conversion.cu
+    OPTIONS -arch sm_20
+	)
+	
+	TARGET_LINK_LIBRARIES(cudalib ${CUDA_LIBRARIES})
+	set (CUDA_LINK_LIBRARIES "${CUDA_CUDA_LIBRARY};${CUDA_CUDART_LIBRARY};cudalib")
+	
 endif()
 find_package( DirectX )
 include_directories(${DXGI_INCLUDES})
 include_directories(${Boost_INCLUDE_DIRS})
-include_directories(${CUDA_TOOLKIT_INCLUDE})
-CUDA_ADD_LIBRARY(cudalib STATIC
-    color_conversion.h
-    color_conversion.cu
-    OPTIONS -arch sm_20
-)
-TARGET_LINK_LIBRARIES(cudalib ${CUDA_LIBRARIES})
-set (CUDA_LINK_LIBRARIES "${CUDA_CUDA_LIBRARY};${CUDA_CUDART_LIBRARY};cudalib")
 
-if (DIRECTX_FOUND)
-	#files for NVEncoder
-	set (NVENCODER_FOUND 1)
-	SET(NVENCODER_SOURCE
-	  NvEncoder/NvHWEncoder.cpp
-	)
+#files for NVEncoder
+set (NVENCODER_FOUND 0)
+if (NVENCODER_FOUND) 
+	SET(NVENCODER_SOURCE NvEncoder/NvHWEncoder.cpp)
 	SET(NVENCODER_HEADERS
 	  NV_encoding.hpp
 	  NvEncoder/NvEncoder.h
 	  NvEncoder/NvHWEncoder.h
 	  NvEncoder/nvEncodeAPI.h
 	)
+endif()		
+
+set (DIRECTX_FOUND 0)
+if (DIRECTX_FOUND)
+
 	SET(Capture_HEADER
 	  wddm.h
 	  WDDMCapture.h
