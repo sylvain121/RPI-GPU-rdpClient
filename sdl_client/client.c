@@ -1,24 +1,5 @@
-// tutorial02.c
-// A pedagogical video player that will stream through every video frame as fast as it can.
-//
-// Code based on FFplay, Copyright (c) 2003 Fabrice Bellard, 
-// and a tutorial by Martin Bohme (boehme@inb.uni-luebeckREMOVETHIS.de)
-// Tested on Gentoo, CVS version 5/01/07 compiled with GCC 4.1.1
-// With updates from https://github.com/chelyaev/ffmpeg-tutorial
-// Updates tested on:
-// LAVC 54.59.100, LAVF 54.29.104, LSWS 2.1.101, SDL 1.2.15
-// on GCC 4.7.2 in Debian February 2015
-//
-// Use
-// 
-// gcc -o tutorial02 tutorial02.c -lavformat -lavcodec -lswscale -lz -lm `sdl-config --cflags --libs`
-// to build (assuming libavformat and libavcodec are correctly installed, 
-// and assuming you have sdl-config. Please refer to SDL docs for your installation.)
-//
-// Run using
-// tutorial02 myvideofile.mpg
-//
-// to play the video stream on your screen.
+// remote desktop sdl client
+
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -175,25 +156,29 @@ int main(int argc, char *argv[]) {
 
 	for(;;) {
 		av_init_packet(&packet);
-		int net_lenght =SDLNet_TCP_Recv(sd, net_in, INBUF_SIZE);
+
+		int net_lenght =SDLNet_TCP_Recv(sd, net_in, 256);
 		memcpy(inbuf+inbuf_average, net_in, net_lenght);
-		printf("inbuf_average %i  + network length %i \n", inbuf_average, net_lenght);
+		//printf("inbuf_average %i  + network length %i \n", inbuf_average, net_lenght);
 		inbuf_average = net_lenght + inbuf_average;
-		printf("result inbuf_average %i \n", inbuf_average);
+		//printf("result inbuf_average %i \n", inbuf_average);
 
 	
-		parserLenght = av_parser_parse2(parser, pCodecCtx, &packet.data, &packet.size, inbuf, inbuf_average, pts, dts, AV_NOPTS_VALUE);
+		parserLenght = av_parser_parse2(parser, pCodecCtx, &packet.data, &packet.size, &inbuf[0], inbuf_average, pts, dts, AV_NOPTS_VALUE);
+		//printf("Parser length %i\n", parserLenght);
 		memcpy(inbuf, inbuf+parserLenght, inbuf_average - parserLenght);
 		inbuf_average -= parserLenght;
 
-		if(net_lenght == 0)
-			break;
+		//printf("inbuf_average %i\n", inbuf_average);
+		// if(net_lenght == 0)
+		// 	break;
 
 		while(packet.size > 0) {
 
 			int lenght;
 			// Decode video frame
 			  int frameFinished;
+
 		      lenght = avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
 		      if( lenght < 0 ) {
 		      	fprintf(stderr, "Error while decoding frame\n");
@@ -230,8 +215,9 @@ int main(int argc, char *argv[]) {
 				packet.size -=lenght;
 				packet.data +=lenght;
 			}
+					av_free_packet(&packet);
 		}
-		av_free_packet(&packet);
+
 		
 	}
 
