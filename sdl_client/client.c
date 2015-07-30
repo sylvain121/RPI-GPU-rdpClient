@@ -76,8 +76,8 @@ int main(int argc, char *argv[]) {
 
   // Copy context
 pCodecCtx = avcodec_alloc_context3(pCodec);
-pCodecCtx->width = 1280;
-pCodecCtx->height = 900;
+pCodecCtx->width = 1024;
+pCodecCtx->height = 768;
 pCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
 
 
