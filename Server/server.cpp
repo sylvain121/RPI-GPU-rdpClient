@@ -17,17 +17,17 @@
 #include "config.h"
 
 #ifdef DIRECTX_FOUND
-	#include "WDDMCapture.h"
+	#include "windows/WDDMCapture.h"
 #else
-	#include "GDICapture.h"
+	#include "windows/GDICapture.h"
 #endif
 
 #ifdef FFMPEG_FOUND
-	#include "FFMPEG_encoding.hpp"
+	#include "encoder_ffmpeg/FFMPEG_encoding.hpp"
 #endif
 
 #ifdef NVENCODER_FOUND
-	#include "NV_encoding.hpp"
+	#include "encoder_nvenc/NV_encoding.hpp"
 #endif
 
 using namespace std;
