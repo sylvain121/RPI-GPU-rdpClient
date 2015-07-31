@@ -1,14 +1,23 @@
 cmake_minimum_required(VERSION 2.8)
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}")
-option( WITH_NVENC "add Nvidia HW encoder support")
+option(WITH_NVENC "add Nvidia HW encoder support")
+option(WITH_DIRECTX "force GDI capture mode" ON)
 
+project( server )
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 #init 
+set(BOOST_ROOT "C:/boost_1_58_0")
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 find_package( Boost REQUIRED COMPONENTS thread )
 
+# BOOST
 
+if(Boost_FOUND)
+    message("Boost found!")
+endif()
 
 if(WITH_NVENC)
 	message("add Nvidia HW encoder support")
@@ -19,15 +28,6 @@ else()
 	set(FFMPEG_ROOT "C:/ffmpeg")
 endif()
 
-project( server )
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
-# BOOST
-
-if(Boost_FOUND)
-    message("Boost found!")
-endif()
 include_directories(${Boost_INCLUDE_DIR})
 LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 
@@ -73,9 +73,8 @@ if(CUDA_FOUND)
 else()
 	message("CUDA not found")
 endif()
-find_package( DirectX )
-include_directories(${DXGI_INCLUDES})
-include_directories(${Boost_INCLUDE_DIRS})
+
+
 
 #files for NVEncoder
 if (NVENCODER_FOUND) 
@@ -88,14 +87,23 @@ if (NVENCODER_FOUND)
 	)
 endif()		
 
-set (DIRECTX_FOUND 0)
-if (DIRECTX_FOUND)
+if(WITH_DIRECTX)
+	find_package( DirectX )
+else()
+	set(DIRECTX_FOUND 0)
+endif()
+	
+include_directories(${DXGI_INCLUDES})
+include_directories(${Boost_INCLUDE_DIRS})
 
+if (DIRECTX_FOUND)
+	message("set directX capture mode")
 	SET(Capture_HEADER
 	  windows/wddm.h
 	  windows/WDDMCapture.h
 	)
 else()
+	message("set GDI capture mode")
 	SET(Capture_HEADER
 	  windows/GDICapture.h
 	)
@@ -108,6 +116,8 @@ SET(COMMON_SOURCE
   fps.h
   monitor.h
   params.h
+  windows_controller.hpp
+  controller.hpp
 )
 
 add_executable( server server.cpp ${COMMON_SOURCE} ${NVENCODER_SOURCE} ${NVENCODER_HEADERS} ${FFMPEG_HEADER} ${Capture_HEADER} )
