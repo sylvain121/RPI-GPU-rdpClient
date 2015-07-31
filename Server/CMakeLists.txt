@@ -1,15 +1,30 @@
 cmake_minimum_required(VERSION 2.8)
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}")
+option( WITH_NVENC "add Nvidia HW encoder support")
+
+
+#init 
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+find_package( Boost REQUIRED COMPONENTS thread )
+
+
+
+if(WITH_NVENC)
+	message("add Nvidia HW encoder support")
+	find_package(CUDA)
+	set(NVENCODER_FOUND 1)
+else()
+	message("Use software decoder with ffmpeg")
+	set(FFMPEG_ROOT "C:/ffmpeg")
+endif()
 
 project( server )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # BOOST
-set(BOOST_ROOT "C:/boost_1_58_0")
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_MULTITHREADED ON)
-find_package( Boost REQUIRED COMPONENTS thread )
+
 if(Boost_FOUND)
     message("Boost found!")
 endif()
@@ -17,7 +32,7 @@ include_directories(${Boost_INCLUDE_DIR})
 LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 
 # FFMPEG
-set(FFMPEG_ROOT "C:/ffmpeg")
+
 if (FFMPEG_ROOT)
 	FIND_PATH( FFMPEG_INCLUDE_DIR libavcodec/avcodec.h
 	  ${FFMPEG_ROOT}/include
@@ -37,40 +52,39 @@ if (FFMPEG_ROOT)
 	endif()
 	if (FFMPEG_FOUND)
 		SET(FFMPEG_HEADER
-		  FFMPEG_encoding.hpp
+		  encoder_ffmpeg/FFMPEG_encoding.hpp
 		)
 	endif()
 endif()
 
 # DXGI and CUDA
-find_package(CUDA)
-set (CUDA_FOUND 0)
+
 if(CUDA_FOUND)
     message("CUDA found!")
 	include_directories(${CUDA_TOOLKIT_INCLUDE})
 	CUDA_ADD_LIBRARY(cudalib STATIC
-    color_conversion.h
-    color_conversion.cu
+    encoder_nvenc/color_conversion.h
+    encoder_nvenc/color_conversion.cu
     OPTIONS -arch sm_20
 	)
 	
 	TARGET_LINK_LIBRARIES(cudalib ${CUDA_LIBRARIES})
 	set (CUDA_LINK_LIBRARIES "${CUDA_CUDA_LIBRARY};${CUDA_CUDART_LIBRARY};cudalib")
-	
+else()
+	message("CUDA not found")
 endif()
 find_package( DirectX )
 include_directories(${DXGI_INCLUDES})
 include_directories(${Boost_INCLUDE_DIRS})
 
 #files for NVEncoder
-set (NVENCODER_FOUND 0)
 if (NVENCODER_FOUND) 
-	SET(NVENCODER_SOURCE NvEncoder/NvHWEncoder.cpp)
+	SET(NVENCODER_SOURCE encoder_nvenc/NvEncoder/NvHWEncoder.cpp)
 	SET(NVENCODER_HEADERS
-	  NV_encoding.hpp
-	  NvEncoder/NvEncoder.h
-	  NvEncoder/NvHWEncoder.h
-	  NvEncoder/nvEncodeAPI.h
+	  encoder_nvenc/NV_encoding.hpp
+	  encoder_nvenc/NvEncoder/NvEncoder.h
+	  encoder_nvenc/NvEncoder/NvHWEncoder.h
+	  encoder_nvenc/NvEncoder/nvEncodeAPI.h
 	)
 endif()		
 
@@ -78,12 +92,12 @@ set (DIRECTX_FOUND 0)
 if (DIRECTX_FOUND)
 
 	SET(Capture_HEADER
-	  wddm.h
-	  WDDMCapture.h
+	  windows/wddm.h
+	  windows/WDDMCapture.h
 	)
 else()
 	SET(Capture_HEADER
-	  GDICapture.h
+	  windows/GDICapture.h
 	)
 endif()
 
