@@ -118,6 +118,9 @@ SET(COMMON_SOURCE
   params.h
   windows_controller.hpp
   controller.hpp
+  ../common/controller_message.hpp
+  encoder.hpp
+  streamer.hpp
 )
 
 add_executable( server server.cpp ${COMMON_SOURCE} ${NVENCODER_SOURCE} ${NVENCODER_HEADERS} ${FFMPEG_HEADER} ${Capture_HEADER} )

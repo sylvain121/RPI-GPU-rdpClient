@@ -22,16 +22,20 @@
 
 #ifdef DIRECTX_FOUND
 	#include "windows/WDDMCapture.h"
+	WDDMCapture capture;
 #else
 	#include "windows/GDICapture.h"
+	GDICapture capture;
 #endif
 
 #ifdef FFMPEG_FOUND
 	#include "encoder_ffmpeg/FFMPEG_encoding.hpp"
+	FFMPEG_encoding encoder;
 #endif
 
 #ifdef NVENCODER_FOUND
 	#include "encoder_nvenc/NV_encoding.hpp"
+	NV_encoding encoder;
 #endif
 
 #ifdef _WIN32
@@ -54,11 +58,6 @@ void threadScreenCapture(UINT monitorID, RECT screen){
 	int height = screen.bottom - screen.top;
 	int width = screen.right - screen.left;
 
-#ifdef DIRECTX_FOUND
-	WDDMCapture capture;
-#else
-	GDICapture capture;
-#endif
 
 	capture.init(monitorID, screen);
 
@@ -84,13 +83,7 @@ void sessionVideo(socket_ptr sock, UINT monitorID, RECT screen)
 	int height = screen.bottom - screen.top;
 	int width = screen.right - screen.left;
 
-#ifdef NVENCODER_FOUND
-	NV_encoding nv_encoding;
-	nv_encoding.load(width, height, sock, monitorID);
-#elif defined(FFMPEG_FOUND)
-	FFMPEG_encoding ffmpeg;
-	ffmpeg.load(width, height, sock);
-#endif
+	encoder.load(width, height, sock); // encode function
 
 	boost::thread t(boost::bind(threadScreenCapture, monitorID, screen));
 
@@ -99,20 +92,15 @@ void sessionVideo(socket_ptr sock, UINT monitorID, RECT screen)
 	while(true){
 		screenToSendQueue.pop_back(&pPixels);
 
-#ifdef NVENCODER_FOUND
-		nv_encoding.write(width, height, pPixels);
-#elif defined(FFMPEG_FOUND)
-		ffmpeg.write(width, height, pPixels);
-#endif
+		encoder.write(width, height, pPixels);
+
 		//fps.newFrame();
 
 		free(pPixels);
 	}
-#ifdef NVENCODER_FOUND
-	nv_encoding.close();
-#elif defined(FFMPEG_FOUND)
-	ffmpeg.close();
-#endif
+
+	encoder.close();
+
 }
 
 
