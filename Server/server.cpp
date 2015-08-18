@@ -15,20 +15,34 @@
 #include "monitor.h"
 #include "params.h"
 #include "config.h"
+#include "controller.hpp"
+
+#define CONTROL_PORT 9991
+
 
 #ifdef DIRECTX_FOUND
 	#include "windows/WDDMCapture.h"
+	WDDMCapture capture;
 #else
 	#include "windows/GDICapture.h"
+	GDICapture capture;
 #endif
 
 #ifdef FFMPEG_FOUND
 	#include "encoder_ffmpeg/FFMPEG_encoding.hpp"
+	FFMPEG_encoding encoder;
 #endif
 
 #ifdef NVENCODER_FOUND
 	#include "encoder_nvenc/NV_encoding.hpp"
+	NV_encoding encoder;
 #endif
+
+#ifdef _WIN32
+	#include "windows_controller.hpp"
+	WindowsController controller;
+#endif
+
 
 using namespace std;
 using namespace boost::asio;
@@ -44,11 +58,6 @@ void threadScreenCapture(UINT monitorID, RECT screen){
 	int height = screen.bottom - screen.top;
 	int width = screen.right - screen.left;
 
-#ifdef DIRECTX_FOUND
-	WDDMCapture capture;
-#else
-	GDICapture capture;
-#endif
 
 	capture.init(monitorID, screen);
 
@@ -74,13 +83,7 @@ void sessionVideo(socket_ptr sock, UINT monitorID, RECT screen)
 	int height = screen.bottom - screen.top;
 	int width = screen.right - screen.left;
 
-#ifdef NVENCODER_FOUND
-	NV_encoding nv_encoding;
-	nv_encoding.load(width, height, sock, monitorID);
-#elif defined(FFMPEG_FOUND)
-	FFMPEG_encoding ffmpeg;
-	ffmpeg.load(width, height, sock);
-#endif
+	encoder.load(width, height, sock); // encode function
 
 	boost::thread t(boost::bind(threadScreenCapture, monitorID, screen));
 
@@ -89,190 +92,33 @@ void sessionVideo(socket_ptr sock, UINT monitorID, RECT screen)
 	while(true){
 		screenToSendQueue.pop_back(&pPixels);
 
-#ifdef NVENCODER_FOUND
-		nv_encoding.write(width, height, pPixels);
-#elif defined(FFMPEG_FOUND)
-		ffmpeg.write(width, height, pPixels);
-#endif
+		encoder.write(width, height, pPixels);
+
 		//fps.newFrame();
 
 		free(pPixels);
 	}
-#ifdef NVENCODER_FOUND
-	nv_encoding.close();
-#elif defined(FFMPEG_FOUND)
-	ffmpeg.close();
-#endif
+
+	encoder.close();
+
 }
 
-struct SendStruct {
-    int type;
-    int x;
-    int y;
-    int button;
-    int keycode;
-};
-void sessionKeystroke(socket_ptr sock, RECT screen)
-{
-	char data[sizeof(SendStruct)];
-	boost::system::error_code error;
-
-	SendStruct* s;
-	INPUT input = {0};
-	while(true) {
-		size_t length = sock->read_some(buffer(data), error);
-		if (error == error::eof)
-			return; // Connection closed cleanly by peer.
-		else if (error)
-			throw boost::system::system_error(error); // Some other error.
-
-		s = (SendStruct*)data;
-
-		::ZeroMemory(&input,sizeof(INPUT));
-		switch(s->type){
-			case 0: // MotionNotify
-				SetCursorPos(s->x + screen.left, s->y + screen.top);
-				break;
-
-			case 1:
-				switch (s->button) {
-				case 1: // left button
-					input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-					break;
-				case 2: // middle button
-					input.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
-					break;
-				case 3: // third button
-					input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
-					break;
-				case 4: // scroll up
-					input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					input.mi.mouseData = 100;
-					break;
-				case 5: // scroll down
-					input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					input.mi.mouseData = -100;
-					break;
-				}
-				input.type      = INPUT_MOUSE;
-				::SendInput(1,&input,sizeof(INPUT));
-				break;
-			case 2:
-				switch (s->button) {
-				case 1: // left button
-					input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-					break;
-				case 2: // middle button
-					input.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
-					break;
-				case 3: // third button
-					input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
-					break;
-				}
-				if (input.mi.dwFlags) {
-					input.type      = INPUT_MOUSE;
-					::SendInput(1,&input,sizeof(INPUT));
-				}
-				break;
-
-			case 3:
-				input.type      = INPUT_KEYBOARD;
-				input.ki.wScan = s->keycode;
-				input.ki.wVk=0;
-				input.ki.dwFlags  = KEYEVENTF_UNICODE;
-				::SendInput(1,&input,sizeof(INPUT));
-				break;
-			case 4:
-				input.type      = INPUT_KEYBOARD;
-				input.ki.wScan = s->keycode;
-				input.ki.wVk=0;
-				input.ki.dwFlags  = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
-				::SendInput(1,&input,sizeof(INPUT));
-				break;
-		}
-	}
-}
-void session(socket_ptr sock, UINT monitorID, RECT screenCoordinates)
-{
-	try
-	{
-		sock->set_option(tcp::no_delay(true));
-		char data[max_length];
-
-		boost::system::error_code error;
-		size_t length = sock->read_some(buffer(data), error);
-		if (error == error::eof)
-			return; // Connection closed cleanly by peer.
-		else if (error)
-			throw boost::system::system_error(error); // Some other error.
-
-		if (data[0] == 'a'){
-			sessionVideo(sock, monitorID, screenCoordinates);
-		} else if (data[0] == 'b'){
-			sessionKeystroke(sock, screenCoordinates);
-		} else {
-			cout << "Received a connection with a wrong identification buffer " << string(data, length) << endl;
-		}
-	}
-	catch (exception& e)
-	{
-		cerr << "Exception in thread: " << e.what() << "\n";
-	}
-}
-
-void server(io_service& io_service, short port, UINT monitorID, RECT screenCoordinates)
-{
-	tcp::acceptor a(io_service, tcp::endpoint(tcp::v4(), port));
-	for (;;)
-	{
-		socket_ptr sock(new tcp::socket(io_service));
-		a.accept(*sock);
-		boost::thread t(boost::bind(session, sock, monitorID, screenCoordinates));
-	}
-}
 
 int main(int argc, const char* argv[])
 {
     cout << "Version 0.9" << endl;
 	Params params(argc, argv);
-    if (params.port == -1)
+    if (params.monitor == -1)
     {
-		cerr << "Usage: ./server [options] port <#>" << endl;
+		cerr << "Usage: ./server [options]" << endl;
 		cerr << "monitor <n>\n";
-		cerr << "Sample: ./server monitor 1 port 8080" << endl;
+		cerr << "Sample: ./server monitor 0" << endl;
 		return 1;
     }
 
-	Monitor monitor;
-	RECT screenCoordinates;
-	int monitorCount = GetSystemMetrics(SM_CMONITORS);
-	if (monitorCount > 1 && params.monitor == -1) {
-		cerr << "There are more than one monitor available, select which monitor to use with\n./server -monitor <n> <port>" << endl;
-		return 1;
-	} else {
-		if (params.monitor < 0 || params.monitor >= monitor.monitors.size()) {
-			cerr << "The chosen monitor " << params.monitor << " is invalid, select from the following:\n";
-			for (int i=0;i<monitor.monitors.size();i++) {
-				RECT r = monitor.monitors[i];
-				cerr << "Monitor " << i << ":" << "["<<r.left<<" "<<r.top<<","<<r.bottom<<" "<<r.right<<"]" << endl;
-			}
-			return 1;
-		}
-		screenCoordinates = monitor.monitors[params.monitor];
-	}
+	controller.init(params.monitor, CONTROL_PORT);
+	controller.setScreenCoordinates();
+	controller.startControllerSocket();
 	
-	//socket_ptr sock;
-	//sessionVideo(sock, params.monitor, screenCoordinates); // TODO test
-
-	try
-	{
-		io_service io_service;
-
-		server(io_service, params.port, params.monitor, screenCoordinates);
-	}
-	catch (exception& e)
-	{
-		cerr << "Exception: " << e.what() << "\n";
-	}
 	return 0;
 }
