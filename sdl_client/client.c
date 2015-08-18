@@ -10,6 +10,7 @@
 #include <SDL/SDL_net.h>
 
 
+
 #define INBUF_SIZE 1000000
 #define FF_INPUT_BUFFER_PADDING_SIZE 32
 
@@ -33,6 +34,15 @@ struct SendStruct {
 	int keycode;
 };
 
+enum messageType {
+	MOUSE_MOTION,
+	MOUSE_BUTTON_DOWN,
+	MOUSE_BUTTON_UP,
+	KEY_DOWN,
+	KEY_UP,
+	STREAMER_START,
+	STREAMER_STOP
+};
 
 int main(int argc, char *argv[]) {
 
@@ -53,6 +63,8 @@ int main(int argc, char *argv[]) {
 	SDL_Surface     *screen;
 	SDL_Rect        rect;
 	SDL_Event       event;
+
+	struct SendStruct send; 
 
 
 	uint8_t inbuf[INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE];
@@ -167,10 +179,9 @@ if(!(socketControl = SDLNet_TCP_Open(&ipControl))) {
 	exit(EXIT_FAILURE);	
 }
 //activate control
-printf("Activate control\n");
-char sendKey2[1] = {'b'};
-len = strlen(sendKey2);
-SDLNet_TCP_Send(socketControl, (void * )sendKey2, len);
+printf("Start streamer on udp socket\n");
+send.type = STREAMER_START;
+SDLNet_TCP_Send(socketControl, (void * )&send, sizeof(send));
 
 	// received data loop
 AVPacket        packet;
@@ -194,7 +205,7 @@ for(;;) {
 		*/
 		while(SDL_PollEvent(&userEvent)) {
 
-			struct SendStruct send; 
+
 			
 			switch(userEvent.type) {
 				case SDL_QUIT: 
