@@ -1,0 +1,5 @@
+#cmakedefine FFMPEG_FOUND
+
+#cmakedefine DIRECTX_FOUND
+
+#cmakedefine NVENCODER_FOUND
